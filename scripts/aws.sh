@@ -22,16 +22,6 @@ aws_display_tokens(){
         | uniq -c
 }
 
-aws_get_tags() {
-    # NOT USED
-    #tags=$(aws ec2 describe-tags \
-    #    --filters "Name=key,Values=Name" \
-    #    --query 'Tags[*].Value[]' \
-    #    --output json)
-    aws ec2 describe-instances \
-        --query 'Reservations[].Instances[].Tags[?Key==`Name`].Value[]'
-}
-
 aws_get_tokens() {
     aws ec2 describe-instances --output text \
             --query 'Reservations[*].Instances[*].[ClientToken]' \
@@ -59,11 +49,6 @@ aws_display_instances_by_tag() {
                 | awk '{ printf "%9s %12s %15s %20s %14s \n", $1, $2, $3, $4, $5}' # column -t -c 70}
             echo "$result"
         fi
-        # With column headers (but can't specify column order):
-        #aws ec2 describe-instances --output text \
-        #    --filter "Name=tag:Name,Values=2016-03-03-18-48-aj" \
-        #    --query "Reservations[*].Instances[*].{PublicIpAddress:PublicIpAddress,State:State}" 
-
 }
 
 aws_get_instance_ids_by_client_token() {
@@ -90,9 +75,6 @@ aws_get_instance_ips_by_tag() {
         --query "Reservations[*].Instances[*].PublicIpAddress" \
             | tr "\t" "\n" \
             | sort -n -t . -k 1,1 -k 2,2 -k 3,3 -k 4,4  # sort IPs
-    # JP: try [PublicIpAddress] to simplify a tiny bit
-        #--query [PublicIpAddress] \
-        # AJ: ? That doesn't work for me
 }
 
 aws_kill_instances_by_tag() {
