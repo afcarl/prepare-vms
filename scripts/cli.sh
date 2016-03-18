@@ -1,10 +1,10 @@
 die () {
-    if [ -z $1 ]; then
+    if [ -z "$1" ]; then
         exit 1
     fi
-    echo $(tput setaf 1)
+    echo -n $(tput setaf 1)
     echo -e "$1"
-    echo $(tput sgr0)
+    echo -n $(tput sgr0)
     exit 1
 }
 
