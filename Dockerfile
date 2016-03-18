@@ -9,14 +9,7 @@ RUN apt-get install -y \
     bsdmainutils \
     pssh \
     python-pip \
-    man \
-    wkhtmltopdf
+    man
 
 RUN pip install termcolor
 RUN pip install PyYAML
-
-#RUN pip install -U docker-compose
-#COPY . /trainer-tools
-#WORKDIR /trainer-tools
-#ENTRYPOINT ["scripts/trainer-cli"]
-# bind-mount /var/run/docker.sock socket
