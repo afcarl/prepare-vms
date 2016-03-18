@@ -15,6 +15,7 @@ deploy_tag(){
     count=$(cat ips.txt | wc -l)
 
     # wait until all hosts are reachable before trying to deploy
+    echo "Trying to reach $TAG instances..."
     while ! tag_is_reachable $TAG; do
         echo -n "."
         sleep 2
@@ -92,8 +93,8 @@ tag_is_reachable() {
     TAG=$1
     need_tag $TAG
     link_tag $TAG
-    echo "Trying to reach $TAG instances..."
-    if ! pssh true &> /dev/null ; then
+    #if ! pssh true &> /dev/null ; then
+    if ! pssh true ; then
         return 1
     fi
     return 0
@@ -141,16 +142,17 @@ test_vm() {
     done
 }
 
+make_key_name(){
+    SHORT_FINGERPRINT=$(ssh-add -l | grep RSA | head -n1 | cut -d " " -f 2 | tr -d : | cut -c 1-8)
+    echo "${SHORT_FINGERPRINT}-${USER}"
+}
 
 sync_keys() {
-    # to test: 
-
     # make sure ssh-add -l contains "RSA"
     ssh-add -l | grep -q RSA ||
         die "The output of \`ssh-add -l\` doesn't contain 'RSA'. Start the agent, add your keys?"
 
-    SHORT_FINGERPRINT=$(ssh-add -l | grep RSA | head -n1 | cut -d " " -f 2 | tr -d : | cut -c 1-8)
-    AWS_KEY_NAME="${SHORT_FINGERPRINT}-${USER}"
+    AWS_KEY_NAME=$(make_key_name)
     echo -n "Syncing keys... "
     if ! aws ec2 describe-key-pairs --key-name "$AWS_KEY_NAME" &> /dev/null; then
         aws ec2 import-key-pair --key-name $AWS_KEY_NAME \
@@ -235,25 +237,6 @@ describe_tag() {
     aws_display_instance_statuses_by_tag $TAG
 }
 
-describe_workshop() {
-
-    echo "======= Workshop: $WORKSHOP ======="
-
-    for item in \
-                WORKSHOP_SHORT_NAME \
-                WORKSHOP_NAME \
-                REPO_REMOTE \
-                CLUSTER_SIZE \
-                PAGE_SIZE \
-                SLIDES_URL \
-                SLIDES_COMMAND \
-                SLIDES_COMMAND_PATH \
-            ; do
-        echo "  $item: ${!item}"
-    done
-}
-
-
 run_cli() {
     case "$1" in
     ami)
@@ -309,9 +292,23 @@ run_cli() {
         echo "trainer stop $TAG"
         ;;
     opensg)
-        ec2-authorize -P tcp -p -1 default
-        ec2-authorize -P udp -p -1 default
-        ec2-authorize -P icmp -t -1:-1 default
+        aws ec2 authorize-security-group-ingress \
+            --group-name default \
+            --protocol icmp \
+            --port -1 \
+            --cidr 0.0.0.0/0
+
+        aws ec2 authorize-security-group-ingress \
+            --group-name default \
+            --protocol udp \
+            --port 0-65535 \
+            --cidr 0.0.0.0/0
+
+        aws ec2 authorize-security-group-ingress \
+            --group-name default \
+            --protocol tcp \
+            --port 0-65535 \
+            --cidr 0.0.0.0/0
         ;;
     pull-images)
         TAG=$2
@@ -332,7 +329,7 @@ run_cli() {
         fi
 
         greet       # Print our AWS username, to ease the pain of credential-juggling
-        sync_keys   # Upload our SSH keys to AWS if needed, to be added to each VM's authorized_keys
+        key_name=$(sync_keys)   # Upload our SSH keys to AWS if needed, to be added to each VM's authorized_keys
         AMI=$(get_ami)  # Retrieve the AWS image ID
         TOKEN=$(get_token)  # generate a timestamp token for this batch of VMs
 
@@ -342,6 +339,7 @@ run_cli() {
         echo "     Token/tag: $TOKEN"
         echo "           AMI: $AMI"
 
+        AWS_KEY_NAME=$(make_key_name)
         result=$(aws ec2 run-instances \
             --key-name $AWS_KEY_NAME \
             --count $2 \
