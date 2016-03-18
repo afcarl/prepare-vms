@@ -1,14 +1,7 @@
 #!/bin/bash
 # Don't execute this script directly. Use ../trainer instead.
-# To make the `trainer` script work, please
-# get your own credentials and set the environment variables below.
-#
-# export AWS_ACCESS_KEY_ID=AKIAJF746WG4HR6IGEXQ
-# export AWS_SECRET_ACCESS_KEY=AoXiWV+lCagS7xM9/svK8XfmmIGR26Napum86xAe
-# AWS_DEFAULT_OUTPUT
 
 set -e  # if we encounter an error, abort
-
 
 greet() {
     hello=$(aws iam get-user --query 'User.UserName')
@@ -21,7 +14,7 @@ deploy_tag(){
     link_tag $TAG
     count=$(cat ips.txt | wc -l)
 
-    # wait until we can at least run a simple command on the host via SSH before trying to deploy
+    # wait until all hosts are reachable before trying to deploy
     while ! tag_is_reachable $TAG; do
         echo -n "."
         sleep 2
@@ -100,7 +93,7 @@ tag_is_reachable() {
     need_tag $TAG
     link_tag $TAG
     echo "Trying to reach $TAG instances..."
-    if ! pssh true ; then
+    if ! pssh true &> /dev/null ; then
         return 1
     fi
     return 0
@@ -211,18 +204,21 @@ make_cards(){
     TAG=$1
     IPS=$(aws_get_instance_ips_by_tag $TAG)
     echo "$IPS" > tags/$TAG/ips.txt
-    link_tag $TAG
+
+    # Remove symlinks to old cards if they exist
+    for f in ips.html ips.pdf; do
+        if [ -e $f ]; then rm $f; fi
+    done
 
     # This will generate two files in the base dir: ips.pdf and ips.html
     python scripts/ips-txt-to-html.py settings.yaml
 
     for f in ips.html ips.pdf; do
-        echo $f
-        if [ -e tags/$TAG/$f ]; then
-            rm tags/$TAG/$f
-        fi
-        mv $f tags/$TAG/$f
-        ln -s tags/$TAG/$f $f
+        # Remove old versions of cards if they exist
+        if [ -e tags/$TAG/$f ]; then rm tags/$TAG/$f; fi
+
+        # Move the generated file and replace it with a symlink
+        mv -f $f tags/$TAG/$f && ln -s tags/$TAG/$f $f
     done
 
     echo "Cards created. You may want to run:"

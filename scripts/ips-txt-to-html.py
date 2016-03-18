@@ -6,11 +6,11 @@ import pdfkit
 
 def prettify(l):
     l = [ip.strip() for ip in l]
-    ret = [ "node{}: {}".format(i+1, s) for (i, s) in zip(range(len(l)), l) ]
+    ret = [ "node{}: <code>{}</code>".format(i+1, s) for (i, s) in zip(range(len(l)), l) ]
     return ret
 
 
-# read settings.yaml
+# Read settings from settings.yaml
 with open(sys.argv[1]) as f:
     data = f.read()
 
@@ -26,7 +26,7 @@ print("Current settings (as defined in settings.yaml):")
 print("   Number of IPs: {}".format(len(ips)))
 print(" VMs per cluster: {}".format(clustersize))
 print("Background image: {}".format(background_image))
-print
+print("---------------------------------------------")
 
 assert len(ips)%clustersize == 0
 
@@ -39,21 +39,24 @@ while ips:
 
 html = open("ips.html", "w")
 html.write("<html><head><style>")
-body = """
-div {{ 
+head = """
+div {{
     float:left;
-    border: 1px solid black;
-    width: 28%;
-    padding: 4% 2.5% 2.5% 2.5%;
+    border: 1px dotted gray;
+    width: 27%;
+    padding: 6% 3.5% 2.5% 2.5%;
     font-size: x-small;
     background-image: url("{background_image}");
-    background-size: 10%;
+    background-size: 13%;
     background-position-x: 50%;
+    background-position-y: 5%;
     background-repeat: no-repeat;
 }}
+
 p {{
     margin: 0.5em 0 0.5em 0;
 }}
+
 .pagebreak {{
     page-break-before: always;
     clear: both;
@@ -61,25 +64,39 @@ p {{
     height: 8px;
 }}
 """
-body = body.format(
-     background_image=SETTINGS['background_image'],
-)
 
-html.write(body)
+
+head = head.format(background_image=SETTINGS['background_image'])
+html.write(head)
 
 html.write("</style></head><body>")
 for i, cluster in enumerate(clusters):
     if i>0 and i%pagesize==0:
         html.write('<span class="pagebreak"></span>\n')
+
     html.write("<div>")
     html.write(blurb)
     for s in prettify(cluster):
         html.write("<li>%s</li>\n"%s)
     html.write("</ul></p>")
-    html.write("<p>login=docker password=training</p>\n")
+    html.write("<p>login: <b><code>{}</code></b>   password: <b><code>{}</code></b></p>\n".format(instance_login, instance_password))
     html.write(footer)
     html.write("</div>")
 html.close()
+
+"""
+    html.write("<div>")
+    html.write("<p>{}</p>".format(blurb))
+    for s in prettify(cluster):
+        html.write("<li>{}</li>".format(s))
+    html.write("</ul></p>")
+    html.write("<center>")
+    html.write("<p>login: <b><code>{}</code></b>   password: <b><code>{}</code></b></p>\n".format(instance_login, instance_password))
+    html.write("</center>")
+    html.write(footer)
+    html.write("</div>")
+html.close()
+"""
 
 with open('ips.html') as f:
     pdfkit.from_file(f, 'ips.pdf')

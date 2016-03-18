@@ -3,10 +3,14 @@
 name: Advanced Docker Orchestration
 repo: https://github.com/jpetazzo/orchestration-workshop
 
-clustersize: 5  # Number of VMs per cluster
-pagesize: 12    # Number of cards to print per page
+instance_login: docker
+instance_password: training
+
+clustersize: 2  # Number of VMs per cluster
+pagesize: 15    # Number of cards to print per page
 
 background_image: https://myapps.developer.ubuntu.com/site_media/appmedia/2014/12/swarm.png
+#background_image: ../media/swarm.png
 
 # To be printed on the cards:
 blurb: >
@@ -18,6 +22,7 @@ blurb: >
 
 # {url} will be replaced by the script
 footer: >
-    <p>You can find the last version of the slides at: {url}.</p>
+    <p>For slides, chat and other useful links, see: </p>
+    <center>{url}</center>
 
 url: http://container.training/
