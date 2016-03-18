@@ -88,7 +88,6 @@ system("curl --silent localhost:55555 || sudo systemctl restart docker ")  # doe
 system("sudo systemctl start docker || true")
 
 ### Install docker-compose
-# CHECKME - need sudo here?
 system("sudo pip install -U docker-compose=={}".format(COMPOSE_VERSION))
 
 ### Install docker-machine
@@ -148,9 +147,6 @@ if [ ! -s $IPS_FILE ]; then
     echo "ips.txt not found."
     exit 1
 fi
-
-# then you test that by pssh'ing into a 5 node cluster to see what happens
-# and when you test, you pass -i to pssh so you can see the output
 
 pssh --timeout 600 --send-input "python /tmp/postprep.py >>/tmp/pp.out 2>>/tmp/pp.err" < $IPS_FILE
 
