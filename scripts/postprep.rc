@@ -66,7 +66,7 @@ system("sudo apt-get -q update")
 system("sudo apt-get -qy install git jq python-pip")
 
 # increase the size of the conntrack table so we don't blow it up when going crazy with http load testing
-os.system("echo 1000000 | sudo tee /proc/sys/net/nf_conntrack_max")
+system("echo 1000000 | sudo tee /proc/sys/net/nf_conntrack_max")
 
 #######################
 ### DOCKER INSTALLS ###
@@ -91,8 +91,8 @@ system("sudo systemctl start docker || true")
 system("sudo pip install -U docker-compose=={}".format(COMPOSE_VERSION))
 
 ### Install docker-machine
-os.system("sudo curl -sSL -o /usr/local/bin/docker-machine https://github.com/docker/machine/releases/download/v{}/docker-machine-$(uname -s)-$(uname -m)".format(MACHINE_VERSION))
-os.system("sudo chmod +x /usr/local/bin/docker-machine*")
+system("sudo curl -sSL -o /usr/local/bin/docker-machine https://github.com/docker/machine/releases/download/v{}/docker-machine-$(uname -s)-$(uname -m)".format(MACHINE_VERSION))
+system("sudo chmod +x /usr/local/bin/docker-machine*")
 
 # Wait for docker to be up.
 # If we don't do this, Docker will not be responsive during the next step.
