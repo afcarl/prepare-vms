@@ -292,7 +292,9 @@ run_cli() {
     ips)
         TAG=$2
         need_tag $TAG
-        aws_get_instance_ips_by_tag $TAG
+        mkdir -p tags/$TAG
+        aws_get_instance_ips_by_tag $TAG | tee tags/$TAG/ips.txt
+        link_tag $TAG
         ;;
     list)
         # list existing instances in a given batch
@@ -301,6 +303,8 @@ run_cli() {
         TAG=$2
         need_tag $TAG
         aws_display_instances_by_tag $TAG
+        echo "To view IPs (and create tags/$TAG/ips.txt if it doesn't exist), run: "
+        echo "trainer ips $TAG"
         ;;
     opensg)
         ec2-authorize -P tcp -p -1 default
@@ -480,5 +484,6 @@ run_cli() {
     source scripts/rc
     source scripts/colors.sh
     cd $SCRIPT_DIR
+    mkdir -p tags
     run_cli "$@"
 )
