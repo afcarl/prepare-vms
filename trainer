@@ -64,15 +64,6 @@ run_containerized() {
         --entrypoint "/trainer-tools/scripts/trainer-cli" \
         $TRAINER_IMAGE "$@"
     )
-    
-        # -e XAUTHORITY \
-       #  -e DISPLAY \
-       #  -e XDG_SESSION_ID \
-       #  -e XDG_VTNR \
-       #  -e XDG_SESSION_DESKTOP \
-       #  -e XDG_SEAT \
-       #  -e XDG_RUNTIME_DIR \
-       # -e DBUS_SESSION_BUS_ADDRESS \
 }
 
 check_envvars() {
@@ -99,9 +90,6 @@ dependencies_fulfilled() {
     for dependency in $DEPENDENCIES ; do
         type $dependency >/dev/null 2>&1 \
             || return 1 ;
-            #|| show_missing_dependencies && return 1 ;
-            #|| { echo >&2 "$dependency not installed. Running in a container."; return 1;}
-            #|| { echo >&2 "I require $dependency but it's not installed."; }
     done
 
     echo "All dependencies fulfilled. Running locally."
@@ -124,8 +112,8 @@ elif trainer_image_exists_locally; then
 else
     echo "Some dependencies are missing, and docker image $TRAINER_IMAGE doesn't exist locally."
     echo "Please do one of the following: "
-    echo "- run \`docker build -t soulshake/trainer-tools\`"
-    echo "- run \`docker pull soulshake/trainer-tools\`"
+    echo "- run \`docker build -t soulshake/prepare-vms .\`"
+    echo "- run \`docker pull soulshake/prepare-vms\`"
     echo "- install all dependencies: "
     show_missing_dependencies
 fi
