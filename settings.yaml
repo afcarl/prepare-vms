@@ -1,9 +1,9 @@
-# This file is read by scripts/ips-txt-to-html.py
+# This file is passed by trainer-cli to scripts/ips-txt-to-html.py
 
 name: Advanced Docker Orchestration
 repo: https://github.com/jpetazzo/orchestration-workshop
 
-clustersize: 1  # Number of VMs per cluster
+clustersize: 5  # Number of VMs per cluster
 pagesize: 12    # Number of cards to print per page
 
 background_image: https://myapps.developer.ubuntu.com/site_media/appmedia/2014/12/swarm.png

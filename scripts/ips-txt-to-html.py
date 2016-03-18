@@ -10,6 +10,7 @@ def prettify(l):
     return ret
 
 
+# read settings.yaml
 with open(sys.argv[1]) as f:
     data = f.read()
 
@@ -64,7 +65,6 @@ body = body.format(
      background_image=SETTINGS['background_image'],
 )
 
-print(body)
 html.write(body)
 
 html.write("</style></head><body>")

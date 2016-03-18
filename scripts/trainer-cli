@@ -18,27 +18,18 @@ greet() {
 deploy_tag(){
     TAG=$1
     need_tag $TAG
-    IPS_FILE=tags/$TAG/ips.txt
     link_tag $TAG
-    need_ips_file $IPS_FILE
-    count=$(cat $IPS_FILE | wc -l)
-    echo "Reading $count IPs from $IPS_FILE"
+    count=$(cat ips.txt | wc -l)
 
     # wait until we can at least run a simple command on the host via SSH before trying to deploy
-    ip=$(tail -1 $IPS_FILE)
-    echo -n "Waiting for initial contact with $ip..."
-    ack="\ Reporting for duty."
-
-    tput setaf 7
-    while ! ssh -q -o "StrictHostKeyChecking=no" ubuntu@$ip "echo $ack"; do
+    while ! tag_is_reachable $TAG; do
         echo -n "."
         sleep 2
     done
-    tput sgr0
 
-    yellow "[[ Deploying tag $(tput bold)$TAG ]]$(tput sgr0)"
+    echo "[[ Deploying tag $TAG ]]"
     source scripts/postprep.rc
-    echo && tput setaf 2 && bold "Finished deploying $TAG" && tput sgr0
+    echo "Finished deploying $TAG."
     echo "You may want to run one of the following commands:"
     echo "trainer pull-images $TAG"
     echo "trainer cards $TAG"
@@ -50,7 +41,6 @@ link_tag() {
     IPS_FILE=tags/$TAG/ips.txt
     need_ips_file $IPS_FILE
     ln -sf $IPS_FILE ips.txt
-    echo "IPs written to ips.txt."
 }
 
 pull_tag(){
@@ -63,7 +53,7 @@ pull_tag(){
     fi
 
     # Pre-pull a bunch of images
-    pssh --timeout 600 'for I in \
+    pssh --timeout 900 'for I in \
             debian:latest \
             ubuntu:latest \
             fedora:latest \
@@ -75,17 +65,50 @@ pull_tag(){
         sudo -u docker docker pull $I
     done'
 
-    #pssh --timeout 600 --send-input "bash /tmp/postprep-pull.rc >>/tmp/pp.out 2>>/tmp/pp.err" < $ips_file
-
-    echo && tput setaf 2 && bold "Finished pulling images for $TAG" && tput sgr0
+    echo "Finished pulling images for $TAG"
 
     echo "You may now want to run:"
-    echo "trainer cards $TAG > $TAG-cards.html"
+    echo "trainer cards $TAG"
+}
+
+wait_until_tag_is_running() {
+    # Wait up to 10 seconds for instances to be created
+    timeout=10
+    TAG=$1
+    COUNT=$2
+    i=0
+    done_count=0
+    while [[ $done_count -lt $COUNT ]]; do \
+        let "i += 1"
+        echo "Waiting: $done_count/$COUNT instances online"
+        done_count=$(aws ec2 describe-instances \
+                --filters "Name=instance-state-name,Values=running" \
+                          "Name=tag:Name,Values=$TAG" \
+                --query "Reservations[*].Instances[*].State.Name" \
+            | tr "\t" "\n" \
+            | wc -l)
+
+        if [[ $i -gt $timeout ]]; then \
+            die " Timed out while waiting for instance creation ($timeout secs)"; \
+        fi
+        sleep 1
+    done
+}
+
+tag_is_reachable() {
+    TAG=$1
+    need_tag $TAG
+    link_tag $TAG
+    echo "Trying to reach $TAG instances..."
+    if ! pssh true ; then
+        return 1
+    fi
+    return 0
 }
 
 test_tag(){
     ips_file=tags/$TAG/ips.txt
-    yellow "Using random IP in $ips_file to run tests on $TAG"
+    echo "Using random IP in $ips_file to run tests on $TAG"
     ip=$(shuf -n 1 $ips_file)
     test_vm $ip
     echo "Tests complete. You may want to run one of the following commands:"
@@ -95,10 +118,8 @@ test_tag(){
 
 test_vm() {
     ip=$1
-    yellow "[[ Testing instance with IP $(tput bold)$ip $(tput sgr0) ]]"
+    echo "[[ Testing instance with IP $(tput bold)$ip $(tput sgr0) ]]"
     user=ubuntu
-    # do it as ubuntu user 
-    # sudo -u docker "docker ps"
 
     for cmd in "hostname" \
         "whoami" \
@@ -156,13 +177,11 @@ sync_keys() {
 }
 
 suggest_amis() {
-    suggested_ami=$(scripts/find-ubuntu-ami.sh -r $AWS_DEFAULT_REGION -a amd64 -v 15.10 -t hvm:ebs -N)
-    echo "$suggested_ami"
+    scripts/find-ubuntu-ami.sh -r $AWS_DEFAULT_REGION -a amd64 -v 15.10 -t hvm:ebs -N
 }
 
 get_token() {
-    TOKEN=$(date +%Y-%m-%d-%H-%M-$USER)
-    echo $TOKEN
+    date +%Y-%m-%d-%H-%M-$USER
 }
 
 get_ami() {
@@ -187,22 +206,25 @@ get_ami() {
 }
 
 
-make_tag(){
+make_cards(){
     # Generate cards for a given tag
     TAG=$1
     IPS=$(aws_get_instance_ips_by_tag $TAG)
-    if [ -e ips.html ]; then
-        rm ips.html
-    fi
     echo "$IPS" > tags/$TAG/ips.txt
+    link_tag $TAG
+
+    # This will generate two files in the base dir: ips.pdf and ips.html
     python scripts/ips-txt-to-html.py settings.yaml
-    if [ -e tags/$TAG/ips.html ]; then
-        rm tags/$TAG/ips.html
-    fi
-    mv ips.html tags/$TAG/
-    mv ips.pdf tags/$TAG/
-    ln -s tags/$TAG/ips.html ips.html
-    ln -s tags/$TAG/ips.pdf ips.pdf
+
+    for f in ips.html ips.pdf; do
+        echo $f
+        if [ -e tags/$TAG/$f ]; then
+            rm tags/$TAG/$f
+        fi
+        mv $f tags/$TAG/$f
+        ln -s tags/$TAG/$f $f
+    done
+
     echo "Cards created. You may want to run:"
     echo "chromium ips.html"
     echo "chromium ips.pdf"
@@ -252,7 +274,7 @@ run_cli() {
     cards)
         TAG=$2
         need_tag $TAG
-        make_tag $TAG
+        make_cards $TAG
         ;;
     deploy)
         TAG=$2
@@ -284,19 +306,16 @@ run_cli() {
         TAG=$2
         need_tag $TAG
         describe_tag $TAG
-        echo "To view IPs (and create tags/$TAG/ips.txt if it doesn't exist), or kill these instances: "
+        tag_is_reachable $TAG
+        echo "You may be interested in running one of the following commands:"
         echo "trainer ips $TAG"
+        echo "trainer deploy $TAG"
         echo "trainer stop $TAG"
         ;;
     opensg)
         ec2-authorize -P tcp -p -1 default
         ec2-authorize -P udp -p -1 default
         ec2-authorize -P icmp -t -1:-1 default
-        ;;
-    pssh)
-        user=ubuntu
-        shift
-        pssh --inline "$@"
         ;;
     pull-images)
         TAG=$2
@@ -309,7 +328,7 @@ run_cli() {
         exec $SHELL
         ;;
     start)
-        # Create $2 instances for workshop $3
+        # Create $2 instances
         COUNT=$2
 
         if [ -z "$COUNT" ]; then
@@ -348,32 +367,11 @@ run_cli() {
         TAG=$TOKEN
         unset TOKEN
 
-        # Wait up to 10 seconds for instances to be created
-        i=0
-        timeout=10
-        done_count=0
-        while [[ $done_count -lt $COUNT ]]; do \
-            let "i += 1"
-            echo "Running: $done_count/$COUNT"
-            done_count=$(aws ec2 describe-instances \
-                    --filters "Name=instance-state-name,Values=running" \
-                              "Name=tag:Name,Values=$TAG" \
-                    --query "Reservations[*].Instances[*].State.Name" \
-                | tr "\t" "\n" \
-                | wc -l)
+        wait_until_tag_is_running $TAG $COUNT
 
-            if [[ $i -gt $timeout ]]; then \
-                die " Timed out while waiting for instance creation ($timeout secs)"; \
-            fi
-            sleep 1
-        done
-
-        echo ""
-        tput setaf 2
         echo "[-------------------------------------------------------------------------------------]"
         echo "        Successfully created $2 instances with tag: $TAG"
         echo "[-------------------------------------------------------------------------------------]"
-        tput sgr0
 
         mkdir -p tags/$TAG
         IPS=$(aws_get_instance_ips_by_tag $TAG)
@@ -422,7 +420,6 @@ run_cli() {
     Extras:
         ips         TAG         List all IPs of instances with a given tag (updates ips.txt)
         ids         TAG/TOKEN   List all instance IDs with a given tag
-        pssh        TAG         Execute a command via parallel-ssh on this tag's VMs
         shell                   Get a shell in the trainer container
         status      TAG         Print information about this tag and its VMs
         tags                    List all tags (per-region)

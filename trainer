@@ -55,6 +55,8 @@ run_containerized() {
         -e SSH_AUTH_SOCK \
         -e SCRIPT_DIR=/trainer-tools \
         -e LOCAL_PATH=$SCRIPT_DIR \
+        -e DISPLAY=$DISPLAY \
+        -v /tmp/.X11-unix:/tmp/.X11-unix \
         -v `pwd`:/workdir \
         -v $SCRIPT_DIR:/trainer-tools/ \
         -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
@@ -116,10 +118,8 @@ if ! check_envvars; then
 fi
 
 if dependencies_fulfilled; then
-    echo "Running natively"
     run_natively "$@"
 elif trainer_image_exists_locally; then
-    echo "Running in container"
     run_containerized "$@"
 else
     echo "Some dependencies are missing, and docker image $TRAINER_IMAGE doesn't exist locally."
