@@ -46,7 +46,9 @@ print("Welcome to postprep.rc!")
 system("if mountpoint -q /mnt; then sudo mkdir /mnt/docker && sudo ln -s /mnt/docker /var/lib/docker; fi")
 
 # Put our public IP in a temporary file
-system("curl --silent http://169.254.169.254/latest/meta-data/public-ipv4 > /tmp/ipv4")
+# ipv4_retrieval_endpoint = "http://169.254.169.254/latest/meta-data/public-ipv4"
+ipv4_retrieval_endpoint = "http://myip.enix.org/REMOTE_ADDR"
+system("curl --silent {} > /tmp/ipv4".format(ipv4_retrieval_endpoint))
 
 ipv4 = open("/tmp/ipv4").read()
 
