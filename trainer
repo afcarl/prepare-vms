@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TRAINER_IMAGE="soulshake/trainer-tools"
+TRAINER_IMAGE="soulshake/prepare-vms"
 
 DEPENDENCIES="
     awscli
