@@ -32,6 +32,14 @@ run_natively() {
 }
 
 run_containerized() {
+    if [ -z $SSH_AUTH_SOCK ]; then
+        echo -n "SSH_AUTH_SOCK envvar not set, so its parent directory can't be "
+        echo "mounted as a volume in a container."
+        echo "Try running the command below and trying again:"
+        echo "eval \$(ssh-agent) && ssh-agent && ssh-add"
+        exit 1
+    fi
+
     (
     cd $SCRIPT_DIR
     docker run --rm -ti \

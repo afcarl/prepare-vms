@@ -129,15 +129,13 @@ test_vm() {
 
 sync_keys() {
     # to test: 
-    # unset SSH_AUTH_SOCK
-    # eval $(ssh-agent) and run ssh-agent again
 
     # make sure ssh-add -l contains "RSA"
     ssh-add -l | grep -q RSA ||
         die "The output of \`ssh-add -l\` doesn't contain 'RSA'. Start the agent, add your keys?"
 
     SHORT_FINGERPRINT=$(ssh-add -l | grep RSA | head -n1 | cut -d " " -f 2 | tr -d : | cut -c 1-8)
-    AWS_KEY_NAME="${SHORT_FINGERPRINT}-${USER}-test"
+    AWS_KEY_NAME="${SHORT_FINGERPRINT}-${USER}"
     echo -n "Syncing keys... "
     if ! aws ec2 describe-key-pairs --key-name "$AWS_KEY_NAME" &> /dev/null; then
         aws ec2 import-key-pair --key-name $AWS_KEY_NAME \
@@ -152,9 +150,8 @@ sync_keys() {
             echo "Imported new key $AWS_KEY_NAME."
         fi
     else
-        echo "Found existing key $AWS_KEY_NAME."
+        echo "Using existing key $AWS_KEY_NAME."
     fi
-    exit
 }
 
 suggest_amis() {
