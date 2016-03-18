@@ -110,10 +110,9 @@ system("docker tag -f swarm:{} swarm".format(SWARM_VERSION))
 
 ### BEGIN CLUSTERING ###
 
-myaddr = urllib.urlopen("http://169.254.169.254/latest/meta-data/public-ipv4").read()
-system("echo myaddr: {}".format(myaddr))
-
 addresses = list(l.strip() for l in sys.stdin)
+
+assert ipv4 in addresses
 
 def makenames(addrs):
     return [ "node%s"%(i+1) for i in range(len(addrs)) ]
@@ -121,7 +120,7 @@ def makenames(addrs):
 while addresses:
     cluster = addresses[:CLUSTER_SIZE]
     addresses = addresses[CLUSTER_SIZE:]
-    if myaddr not in cluster:
+    if ipv4 not in cluster:
         continue
     names = makenames(cluster)
     for ipaddr, name in zip(cluster, names):
@@ -129,12 +128,12 @@ while addresses:
                     .format(ipaddr, ipaddr, name))
     print(cluster)
 
-    mynode = cluster.index(myaddr) + 1
+    mynode = cluster.index(ipv4) + 1
     system("echo 'node{}' | sudo -u docker tee /tmp/node".format(mynode))
     system("sudo -u docker mkdir -p /home/docker/.ssh")
     system("sudo -u docker touch /home/docker/.ssh/authorized_keys")
 
-    if myaddr == cluster[0]:
+    if ipv4 == cluster[0]:
         # If I'm node1 and don't have a private key, generate one (with empty passphrase)
         system("sudo -u docker [ -f /home/docker/.ssh/id_rsa ] || sudo -u docker ssh-keygen -t rsa -f /home/docker/.ssh/id_rsa -P ''")
 
