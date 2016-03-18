@@ -3,11 +3,10 @@
 name: Advanced Docker Orchestration
 repo: https://github.com/jpetazzo/orchestration-workshop
 
-clustersize: 3
+clustersize: 1  # Number of VMs per cluster
+pagesize: 12    # Number of cards to print per page
 
-pagesize: 12  # Number of cards to print per page
-
-image: media/swarm.png  # To be placed in media/
+background_image: https://myapps.developer.ubuntu.com/site_media/appmedia/2014/12/swarm.png
 
 # To be printed on the cards:
 blurb: >

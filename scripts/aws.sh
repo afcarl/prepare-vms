@@ -28,6 +28,20 @@ aws_get_tokens() {
         | sort -u
 }
 
+aws_display_instance_statuses_by_tag() {
+    TAG=$1
+    need_tag $TAG
+    
+    IDS=$(aws ec2 describe-instances \
+        --filters "Name=tag:Name,Values=$TAG" \
+        --query "Reservations[*].Instances[*].InstanceId" | tr '\t' ' ' )
+
+    aws ec2 describe-instance-status \
+        --instance-ids $IDS \
+        --query "InstanceStatuses[*].{ID:InstanceId,InstanceState:InstanceState.Name,InstanceStatus:InstanceStatus.Status,SystemStatus:SystemStatus.Status,Reachability:InstanceStatus.Status}" \
+        --output table
+}
+
 aws_display_instances_by_tag() {
     TAG=$1
     need_tag $TAG
@@ -44,7 +58,6 @@ aws_display_instances_by_tag() {
         if [[ -z $result ]]; then
             echo "No instances found with tag $TAG in region $AWS_DEFAULT_REGION."
         else
-            echo "                      ====  $TAG  ===="
             echo "ID State Tags IP Type" \
                 | awk '{ printf "%9s %12s %15s %20s %14s \n", $1, $2, $3, $4, $5}' # column -t -c 70}
             echo "$result"

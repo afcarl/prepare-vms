@@ -2,6 +2,7 @@
 import os
 import sys
 import yaml
+import pdfkit
 
 def prettify(l):
     l = [ip.strip() for ip in l]
@@ -11,8 +12,8 @@ def prettify(l):
 
 with open(sys.argv[1]) as f:
     data = f.read()
-SETTINGS = yaml.load(data)
 
+SETTINGS = yaml.load(data)
 SETTINGS['footer'] = SETTINGS['footer'].format(url=SETTINGS['url'])
 globals().update(SETTINGS)
 
@@ -20,8 +21,12 @@ globals().update(SETTINGS)
 
 ips = list(open("ips.txt"))
 
-print(len(ips))
-print(len(ips)%clustersize)
+print("Current settings (as defined in settings.yaml):")
+print("   Number of IPs: {}".format(len(ips)))
+print(" VMs per cluster: {}".format(clustersize))
+print("Background image: {}".format(background_image))
+print
+
 assert len(ips)%clustersize == 0
 
 clusters = []
@@ -40,8 +45,8 @@ div {{
     width: 28%;
     padding: 4% 2.5% 2.5% 2.5%;
     font-size: x-small;
-    background-image: url("{IMG}");
-    background-size: 15%;
+    background-image: url("{background_image}");
+    background-size: 10%;
     background-position-x: 50%;
     background-repeat: no-repeat;
 }}
@@ -55,9 +60,11 @@ p {{
     height: 8px;
 }}
 """
-img = SETTINGS['image']
-body = body.format(IMG=img)
+body = body.format(
+     background_image=SETTINGS['background_image'],
+)
 
+print(body)
 html.write(body)
 
 html.write("</style></head><body>")
@@ -74,51 +81,5 @@ for i, cluster in enumerate(clusters):
     html.write("</div>")
 html.close()
 
-
-"""
-SETTINGS_BASIC = dict(
-    clustersize=1,
-    pagesize=15,
-    blurb="<p>Here is the connection information to your very own "
-    "VM for this intro to Docker workshop. You can connect "
-    "to the VM using your SSH client.</p>\n"
-    "<p>Your VM is reachable on the following address:</p>\n",
-    prettify=lambda x: x,
-    footer="<p>You can find the last version of the slides at "
-    "http://view.dckr.info/.</p>",
-    )
-
-SETTINGS_ADVANCED = dict(
-    clustersize=5,
-    pagesize=12,
-    blurb="<p>Here is the connection information to your very own "
-    "cluster for this orchestration workshop. You can connect "
-    "to each VM with any SSH client.</p>\n"
-    "<p>Your machines are:<ul>\n",
-    prettify=lambda l: [ "node%d: %s"%(i+1, s) 
-                         for (i, s) in zip(range(len(l)), l) ],
-    footer="<p>You can find the last version of the slides on -&gt; "
-    "http://container.training/</p>"
-    )
-
-SETTINGS = SETTINGS_BASIC
-"""
-
-
-
-"""
-SETTINGS = dict(
-    clustersize=int(os.environ.get("CLUSTER_SIZE", "5")),
-    pagesize=int(os.environ.get("PAGE_SIZE", 12)),
-    backgroundimage=os.environ.get("BACKGROUND_IMAGE", "docker-nb.svg"),
-    blurb="<p>Here is the connection information to your very own "
-    "cluster for this Docker orchestration workshop. You can connect "
-    "to the VM using your SSH client.</p>\n"
-    "<p>Your VMs are reachable at the following addresses:</p>\n",
-    prettify=lambda l: [ "node%d: %s"%(i+1, s) 
-                         for (i, s) in zip(range(len(l)), l) ],
-    footer="<p>You can find the last version of the slides at "
-    "{}</p>".format(os.environ.get("SLIDES_URL", "http://container.training")),
-    )
-"""
-
+with open('ips.html') as f:
+    pdfkit.from_file(f, 'ips.pdf')

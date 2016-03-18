@@ -12,7 +12,7 @@ RUN apt-get install -y \
     man
 
 RUN apt-get install -y wkhtmltopdf
-RUN pip install pdfkit
 
-RUN pip install termcolor
 RUN pip install PyYAML
+RUN pip install pdfkit
+RUN pip install termcolor

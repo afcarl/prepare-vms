@@ -60,9 +60,17 @@ run_containerized() {
         -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
         -w /workdir \
         --entrypoint "/trainer-tools/scripts/trainer-cli" \
-        soulshake/trainer-tools "$@"
+        $TRAINER_IMAGE "$@"
     )
     
+        # -e XAUTHORITY \
+       #  -e DISPLAY \
+       #  -e XDG_SESSION_ID \
+       #  -e XDG_VTNR \
+       #  -e XDG_SESSION_DESKTOP \
+       #  -e XDG_SEAT \
+       #  -e XDG_RUNTIME_DIR \
+       # -e DBUS_SESSION_BUS_ADDRESS \
 }
 
 check_envvars() {
@@ -108,8 +116,10 @@ if ! check_envvars; then
 fi
 
 if dependencies_fulfilled; then
+    echo "Running natively"
     run_natively "$@"
 elif trainer_image_exists_locally; then
+    echo "Running in container"
     run_containerized "$@"
 else
     echo "Some dependencies are missing, and docker image $TRAINER_IMAGE doesn't exist locally."

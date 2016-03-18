@@ -19,10 +19,10 @@ deploy_tag(){
     TAG=$1
     need_tag $TAG
     IPS_FILE=tags/$TAG/ips.txt
+    link_tag $TAG
     need_ips_file $IPS_FILE
     count=$(cat $IPS_FILE | wc -l)
     echo "Reading $count IPs from $IPS_FILE"
-    link_tag $TAG
 
     # wait until we can at least run a simple command on the host via SSH before trying to deploy
     ip=$(tail -1 $IPS_FILE)
@@ -50,6 +50,7 @@ link_tag() {
     IPS_FILE=tags/$TAG/ips.txt
     need_ips_file $IPS_FILE
     ln -sf $IPS_FILE ips.txt
+    echo "IPs written to ips.txt."
 }
 
 pull_tag(){
@@ -194,32 +195,26 @@ make_tag(){
         rm ips.html
     fi
     echo "$IPS" > tags/$TAG/ips.txt
-    python scripts/ips-txt-to-html.py settings.txt
+    python scripts/ips-txt-to-html.py settings.yaml
     if [ -e tags/$TAG/ips.html ]; then
         rm tags/$TAG/ips.html
     fi
     mv ips.html tags/$TAG/
+    mv ips.pdf tags/$TAG/
     ln -s tags/$TAG/ips.html ips.html
-    #mv ips.html tags/$TAG/ips.html
-    #ln -sf tags/$TAG/ips.html ips.html
+    ln -s tags/$TAG/ips.pdf ips.pdf
     echo "Cards created. You may want to run:"
     echo "chromium ips.html"
+    echo "chromium ips.pdf"
 }
 
 describe_tag() {
+    # Display instance details and reachability/status information
     TAG=$1
     need_tag $TAG
     echo "============= Tag: $TAG ============="
-
-    echo "Instances: "
-    echo "[#] [Status]" | awk '{ printf " %7s %12s \n", $1, $2}'
-
-    aws ec2 describe-instances \
-        --filter "Name=tag:Name,Values=[$TAG]" \
-        --query "Reservations[*].Instances[*].[State]" \
-        | awk '{ printf "% 13s\n", $2}' \
-        | sort \
-        | uniq -c
+    aws_display_instances_by_tag $TAG
+    aws_display_instance_statuses_by_tag $TAG
 }
 
 describe_workshop() {
@@ -254,23 +249,15 @@ run_cli() {
         echo "Suggestions:"
         suggest_amis
         ;;
-    aws)
-        # Wrapper to run arbitrary AWS CLI commands in this container
-        "$@"
-        ;;
     cards)
         TAG=$2
         need_tag $TAG
         make_tag $TAG
         ;;
     deploy)
-        # TODO: increase parallelism
         TAG=$2
         need_tag $TAG
         deploy_tag $TAG
-        ;;
-    env)
-        env  # Print this container's environment variables
         ;;
     ids)
         TAG=$2
@@ -289,7 +276,6 @@ run_cli() {
         mkdir -p tags/$TAG
         aws_get_instance_ips_by_tag $TAG | tee tags/$TAG/ips.txt
         link_tag $TAG
-        echo "IPs written to ips.txt." >&2
         ;;
     list)
         # list existing instances in a given batch
@@ -297,9 +283,10 @@ run_cli() {
         echo "Using region $AWS_DEFAULT_REGION."
         TAG=$2
         need_tag $TAG
-        aws_display_instances_by_tag $TAG
-        echo "To view IPs (and create tags/$TAG/ips.txt if it doesn't exist), run: "
+        describe_tag $TAG
+        echo "To view IPs (and create tags/$TAG/ips.txt if it doesn't exist), or kill these instances: "
         echo "trainer ips $TAG"
+        echo "trainer stop $TAG"
         ;;
     opensg)
         ec2-authorize -P tcp -p -1 default
@@ -316,29 +303,10 @@ run_cli() {
         need_tag $TAG
         pull_tag $TAG
         ;;
-    regions)
-        # Print list of AWS EC2 regions, highlighting ours ($AWS_DEFAULT_REGION) in the list
-        # If our $AWS_DEFAULT_REGION is not valid, the error message will be pretty descriptive:
-        # Could not connect to the endpoint URL: "https://ec2.foo.amazonaws.com/"
-        aws ec2 describe-regions | awk '{print $3}' | grep --color=auto $AWS_DEFAULT_REGION -C50
-        ;;
-    scrape-slides)
-        source settings.txt
-        TARGET="extracted-commands.txt"
-        LOCAL_TARGET="$LOCAL_PATH/extracted-commands.txt"
-        echo "Scraping slides and placing extracted commands in $LOCAL_TARGET"
-        scrape-slides.py $SLIDES_FILE > $TARGET
-        ;;
     shell)
         # Get a shell in the container
         export PS1="trainer@$AWS_DEFAULT_REGION# "
         exec $SHELL
-        ;;
-    run)
-        # Run arbitrary commands in the container
-        # replaces aws) shell)
-        shift
-        bash -c "$@"
         ;;
     start)
         # Create $2 instances for workshop $3
@@ -353,24 +321,21 @@ run_cli() {
         AMI=$(get_ami)  # Retrieve the AWS image ID
         TOKEN=$(get_token)  # generate a timestamp token for this batch of VMs
 
-        tput bold && tput setaf 5
-        echo "---------------------------"
-        echo "Starting $2 instances:"
-        echo "      Region: $AWS_DEFAULT_REGION"
-        echo "       Token: $TOKEN"
-        echo "To be tagged: $TOKEN"
-        echo "         AMI: $AMI"
-        echo "---------------------------"
-        tput sgr0
+        echo "-----------------------------------"
+        echo "Starting $COUNT instances:"
+        echo "        Region: $AWS_DEFAULT_REGION"
+        echo "     Token/tag: $TOKEN"
+        echo "           AMI: $AMI"
 
-        aws ec2 run-instances \
+        result=$(aws ec2 run-instances \
             --key-name $AWS_KEY_NAME \
             --count $2 \
             --instance-type c3.large \
             --client-token $TOKEN \
-            --image-id $AMI  \
-        | head -1
-        echo "---------------------------"
+            --image-id $AMI)
+        reservation_id=$(echo "$result" | head -1 | awk '{print $2}' )
+        echo "Reservation ID: $reservation_id"
+        echo "-----------------------------------"
 
         # if instance creation succeeded, we should have some IDs
         IDS=$(aws_get_instance_ids_by_client_token $TOKEN)
@@ -382,93 +347,90 @@ run_cli() {
         aws ec2 create-tags --tag Key=Name,Value=$TOKEN --resources $IDS >> /dev/null
         TAG=$TOKEN
         unset TOKEN
-        # todo: Run instances and create tags in same command?
-        # aws ec2 create-tags --resources `aws ec2 run-instances [...] | jq -r ".Instances[0].InstanceId"` --tags "Key=Name,Value=..."
 
-        echo "[------------------------------ Waiting for creation ----------------------------------]"
-        # FIXME: instead of querying each instance to check if it has an association, make one call and make sure it has the right number
-        # IDS=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$1" | grep ^INSTANCE | awk '{print $8}')
-        # see aws ec2 wait instance-exists / instance-running / instance-status-ok
-        for ID in $IDS; do
-            while ! aws ec2 describe-instances --filters "Name=instance-id,Values=$ID" \
-                | grep ^ASSOCIATION \
-                | head -1
-            do
-                sleep 3
-            done
+        # Wait up to 10 seconds for instances to be created
+        i=0
+        timeout=10
+        done_count=0
+        while [[ $done_count -lt $COUNT ]]; do \
+            let "i += 1"
+            echo "Running: $done_count/$COUNT"
+            done_count=$(aws ec2 describe-instances \
+                    --filters "Name=instance-state-name,Values=running" \
+                              "Name=tag:Name,Values=$TAG" \
+                    --query "Reservations[*].Instances[*].State.Name" \
+                | tr "\t" "\n" \
+                | wc -l)
+
+            if [[ $i -gt $timeout ]]; then \
+                die " Timed out while waiting for instance creation ($timeout secs)"; \
+            fi
+            sleep 1
         done
 
+        echo ""
         tput setaf 2
-        echo "[--------------------------------------------------------------------------------------------]"
-        echo "        Successfully created $2 instances with tag: $(tput bold)$TAG $(tput sgr0)"
-        echo "[--------------------------------------------------------------------------------------------]"
+        echo "[-------------------------------------------------------------------------------------]"
+        echo "        Successfully created $2 instances with tag: $TAG"
+        echo "[-------------------------------------------------------------------------------------]"
         tput sgr0
 
         mkdir -p tags/$TAG
         IPS=$(aws_get_instance_ips_by_tag $TAG)
         echo "$IPS" > tags/$TAG/ips.txt
         link_tag $TAG
-        echo "IPs written to ips.txt."
+        echo "To deploy or kill these instances, run one of the following:"
+        echo "trainer deploy $TAG"
+        echo "trainer list $TAG"
+        echo "trainer stop $TAG"
         ;;
     status)
-        TAG=$2
-        greet
+        greet && echo
 
-        echo "Region: $AWS_DEFAULT_REGION."
         max_instances=$(aws ec2 describe-account-attributes \
                         --attribute-names max-instances \
                         --query 'AccountAttributes[*][AttributeValues]')
-        echo "Max instances: $max_instances"
-        echo
+        echo "Max instances: $max_instances" && echo
 
-        describe_workshop $WORKSHOP
+        # Print list of AWS EC2 regions, highlighting ours ($AWS_DEFAULT_REGION) in the list
+        # If our $AWS_DEFAULT_REGION is not valid, the error message will be pretty descriptive:
+        # Could not connect to the endpoint URL: "https://ec2.foo.amazonaws.com/"
+        echo "Region:" # $AWS_DEFAULT_REGION."
+        aws ec2 describe-regions | awk '{print $3}' | grep --color=auto $AWS_DEFAULT_REGION -C50
+
         ;;
     stop)
         TAG=$2
         need_tag $TAG
         aws_kill_instances_by_tag $TAG
         ;;
-    tags)
-        aws_display_tags
-        ;;
     test)
         TAG=$2
         need_tag $TAG
         test_tag $TAG
         ;;
-    tokens)
-        aws_display_tokens
-        ;;
     *)
-        echo "$0 COMMAND [n-instances|token|workshop|...]
-    Commands:
+        echo && echo "trainer COMMAND [n-instances|tag]
 
-    General:
-        ami                 Look up Amazon Machine Images
-        aws                 Pass arbitrary commands to AWS CLI
-        limits              Print AWS max-instances
-        opensg              Modify AWS security groups
-        regions             Print list of AWS regions
-        scrape-slides PATH  Attempt to extract commands from slides
+    Core commands:
+        start       n           Start n instances
+        list        [TAG]       If a tag is provided, list its VMs. Otherwise, list tags.
+        deploy      TAG         Deploy all instances with a given tag
+        pull-images TAG         Pre-pull docker images. Run only after deploying.
+        stop        TAG         Stop and delete instances tagged TAG
 
-    Container commands:
-        env                 Print this container's environment variables
-        run     CMD         Run a command in the container
-        shell               Get a shell in the trainer container
+    Extras:
+        ips         TAG         List all IPs of instances with a given tag (updates ips.txt)
+        ids         TAG/TOKEN   List all instance IDs with a given tag
+        pssh        TAG         Execute a command via parallel-ssh on this tag's VMs
+        shell                   Get a shell in the trainer container
+        status      TAG         Print information about this tag and its VMs
+        tags                    List all tags (per-region)
 
-        list    [TAG]       If a tag is provided, list its VMs. Otherwise, list tags.
-        tags                List all tags (per-region)
-        tokens              List all client tokens (per-region; will usually be the same as tags)
-
-    Tag-specific commands:
-        start   n           Start n instances
-        deploy  TAG         Deploy all instances with a given tag
-        ips     TAG         List all IPs of instances with a given tag
-        ids     TAG         List all instance IDs with a given tag
-        pssh    TAG         Execute a command via parallel-ssh on this tag's VMs
-        pull-images TAG     Pre-pull docker images. Run only after deploying.
-        status  TAG         Print information about this tag and its VMs
-        stop    TAG         Stop and delete instances tagged TAG
+    Beta:
+        ami                     Look up Amazon Machine Images
+        cards                   Generate cards (see settings.txt)
+        opensg                  Modify AWS security groups
         "
         ;;
     esac
