@@ -68,7 +68,7 @@ aws_get_instance_ids_by_client_token() {
     TOKEN=$1
     need_tag $TOKEN
     aws ec2 describe-instances --filters "Name=client-token,Values=$TOKEN" \
-        | grep ^INSTANCES \
+        | grep ^INSTANCE \
         | awk '{print $8}'
 }
 
