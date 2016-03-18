@@ -12,7 +12,8 @@ Summary of steps to launch a batch of instances for a workshop:
 * `trainer start NUMBER_OF_VMS` to create AWS instances
 * `trainer deploy TAG` to run `scripts/postprep.rc` via parallel-ssh
 * `trainer pull-images TAG` to pre-pull a bunch of Docker images 
-* `trainer cards TAG` to generate an HTML file you can print to PDF
+* `trainer test TAG`
+* `trainer cards TAG` to generate a PDF and an HTML file you can print
 
 The `trainer` script can be executed directly.
 
@@ -31,10 +32,6 @@ Required environment variables:
 * `AWS_DEFAULT_REGION`
 
 ## Usage
-
-Tip: You can create a symlink in your path for this script:
-
-  ln -s trainer $HOME/bin/trainer
 
 ### Start some VMs
 
