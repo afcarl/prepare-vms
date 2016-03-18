@@ -137,27 +137,24 @@ sync_keys() {
         die "The output of \`ssh-add -l\` doesn't contain 'RSA'. Start the agent, add your keys?"
 
     SHORT_FINGERPRINT=$(ssh-add -l | grep RSA | head -n1 | cut -d " " -f 2 | tr -d : | cut -c 1-8)
-    AWS_KEY_NAME="${SHORT_FINGERPRINT}-${USER}"
-    #echo "Checking for AWS key named $AWS_KEY_NAME in region $AWS_DEFAULT_REGION..."
-    echo "Syncing keys."
-    if ! aws ec2 describe-key-pairs --key-name $AWS_KEY_NAME >> /dev/null; then
-        # FIXME: "A client error ..." still prints here. It shouldn't.
-        echo "No key named $AWS_KEY_NAME found in region $AWS_DEFAULT_REGION. Importing it."
+    AWS_KEY_NAME="${SHORT_FINGERPRINT}-${USER}-test"
+    echo -n "Syncing keys... "
+    if ! aws ec2 describe-key-pairs --key-name "$AWS_KEY_NAME" &> /dev/null; then
         aws ec2 import-key-pair --key-name $AWS_KEY_NAME \
             --public-key-material "$(ssh-add -L \
                                     | grep -i RSA \
                                     | head -n1 \
-                                    | cut -d " " -f 1-2)" >> /dev/null
-        echo "Key pair imported with --key-name $AWS_KEY_NAME. Checking operation was successful..."
+                                    | cut -d " " -f 1-2)" &> /dev/null
 
-        if ! aws ec2 describe-key-pairs --key-name $AWS_KEY_NAME; then
+        if ! aws ec2 describe-key-pairs --key-name "$AWS_KEY_NAME" &> /dev/null; then
             die "Somehow, importing the key didn't work. Make sure that 'ssh-add -l | grep RSA | head -n1' returns an RSA key?"
         else
-            echo "Found AWS key named $AWS_KEY_NAME in region $AWS_DEFAULT_REGION. Proceeding with instance creation."
+            echo "Imported new key $AWS_KEY_NAME."
         fi
     else
-        echo "Found key $AWS_KEY_NAME."
+        echo "Found existing key $AWS_KEY_NAME."
     fi
+    exit
 }
 
 suggest_amis() {
@@ -295,6 +292,7 @@ run_cli() {
         mkdir -p tags/$TAG
         aws_get_instance_ips_by_tag $TAG | tee tags/$TAG/ips.txt
         link_tag $TAG
+        echo "IPs written to ips.txt." >&2
         ;;
     list)
         # list existing instances in a given batch
@@ -413,6 +411,7 @@ run_cli() {
         IPS=$(aws_get_instance_ips_by_tag $TAG)
         echo "$IPS" > tags/$TAG/ips.txt
         link_tag $TAG
+        echo "IPs written to ips.txt."
         ;;
     status)
         TAG=$2
