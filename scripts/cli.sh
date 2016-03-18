@@ -34,7 +34,7 @@ need_ips_file() {
     fi
 
     if [ ! -s "$IPS_FILE" ]; then
-        echo "IPS_FILE $IPS_FILE not found."
+        echo "IPS_FILE $IPS_FILE not found. Please run: trainer ips <TAG>"
         die
     fi
 }
