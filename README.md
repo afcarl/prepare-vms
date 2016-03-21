@@ -1,10 +1,48 @@
-# Trainer tools for Docker workshops
+# Trainer tools to prepare VMs for Docker workshops
 
-This repo should be added as a submodule in the repo of the Docker workshop:
+There are several options for using these tools:
 
-    $ git submodule add https://github.com/jpetazzo/prepare-vms.git
+### Clone the repo
 
-Then, update the `settings.yaml` as needed.
+    $ git clone https://github.com/soulshake/prepare-vms.git
+    $ cd prepare-vms
+    $ docker-compose build
+    $ mkdir $HOME/bin && ln -s `pwd`/trainer $HOME/bin/trainer
+
+### Via the image
+
+    $ docker pull soulshake/prepare-vms
+
+### Submodule
+
+This repo can be added as a submodule in the repo of the Docker workshop:
+
+    $ git submodule add https://github.com/soulshake/prepare-vms.git
+
+## Setup
+
+### Export needed envvars
+
+Required environment variables:
+
+* `AWS_ACCESS_KEY_ID`
+* `AWS_SECRET_ACCESS_KEY`
+* `AWS_DEFAULT_REGION`
+
+
+
+### Update settings.yaml
+
+If you have more than one workshop:
+
+    $ cp settings.yaml settings/YOUR_WORKSHOP_NAME-settings.yaml
+    $ ln -s settings/YOUR_WORKSHOP_NAME-settings.yaml `pwd`/settings.yaml
+
+Update the `settings.yaml` as needed. This is the file that will be used to generate cards.
+
+## Usage
+
+### Summary
 
 Summary of steps to launch a batch of instances for a workshop:
 
@@ -23,15 +61,7 @@ tagged `soulshake/trainer-tools`. If found, it will run in a container. If not f
 the user will be prompted to either install the missing dependencies or download
 the Docker image.
 
-### Requirements
-
-Required environment variables:
-
-* `AWS_ACCESS_KEY_ID`
-* `AWS_SECRET_ACCESS_KEY`
-* `AWS_DEFAULT_REGION`
-
-## Usage
+## Detailed usage
 
 ### Start some VMs
 

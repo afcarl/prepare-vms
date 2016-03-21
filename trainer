@@ -19,6 +19,9 @@ ENVVARS="
     AWS_SECRET_ACCESS_KEY
     AWS_DEFAULT_REGION
     AWS_DEFAULT_PROFILE
+    SSH_AGENT_PID
+    SSH_AUTH_SOCK
+    SSH_AGENT_PID
     "
 
 # Get the script's real directory, whether we're being called directly or via a symlink
@@ -45,6 +48,7 @@ run_containerized() {
     (
     cd $SCRIPT_DIR
     export SSH_AUTH_DIRNAME=$(dirname $SSH_AUTH_SOCK)
+    echo "SSH_AUTH_DIRNAME: $SSH_AUTH_DIRNAME"
     docker-compose -f docker-compose.yml run prepare-vms "$@"
 
     #docker run --rm -ti \
