@@ -1,7 +1,7 @@
 # This file is passed by trainer-cli to scripts/ips-txt-to-html.py
 
 workshop_name: Docker fundamentals
-workshop_short_name: docker     # appears on VM connection cards
+workshop_short_name: Docker     # appears on VM connection cards
 repo: https://github.com/docker/docker-fundamentals
 
 instance_login: docker
