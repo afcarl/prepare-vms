@@ -18,6 +18,7 @@ ENVVARS="
     AWS_ACCESS_KEY_ID
     AWS_SECRET_ACCESS_KEY
     AWS_DEFAULT_REGION
+    AWS_DEFAULT_PROFILE
     "
 
 # Get the script's real directory, whether we're being called directly or via a symlink
@@ -44,7 +45,7 @@ run_containerized() {
     (
     cd $SCRIPT_DIR
     export SSH_AUTH_DIRNAME=$(dirname $SSH_AUTH_SOCK)
-    docker-compose -f ~/git/prepare-vms/docker-compose.yml run prepare-vms "$@"
+    docker-compose -f docker-compose.yml run prepare-vms "$@"
 
     #docker run --rm -ti \
     #    --name trainer \
@@ -76,8 +77,7 @@ check_envvars() {
 
     for envvar in $ENVVARS; do
         if [ -z "${!envvar}" ]; then
-            echo "Please export $envvar environment variable."
-            echo "Unsetting $envvar environment variable."
+            echo "Please export $envvar environment variable. Unsetting."
             unset $envvar
             #return 1
         fi
