@@ -1,5 +1,4 @@
-#FROM debian:jessie
-FROM soulshake/aws.cli
+FROM debian:jessie
 MAINTAINER AJ Bowen <aj@soulshake.net>
 
 RUN apt-get update
