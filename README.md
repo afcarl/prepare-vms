@@ -89,3 +89,7 @@ This will print a human-friendly list containing some information about each ins
 
     $ trainer stop TAG
 
+## ToDo
+
+  * Don't write to bash history in system() in postprep 
+  * compose, etc version inconsistent (int vs str)

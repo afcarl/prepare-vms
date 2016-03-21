@@ -93,8 +93,9 @@ tag_is_reachable() {
     TAG=$1
     need_tag $TAG
     link_tag $TAG
+    #if ! pssh true ; then
     #if ! pssh true &> /dev/null ; then
-    if ! pssh true ; then
+    if ! pssh true 2>&1 >/dev/null; then
         return 1
     fi
     return 0
@@ -176,6 +177,9 @@ suggest_amis() {
 }
 
 get_token() {
+    if [ -z $USER ]; then
+        export USER=anonymous
+    fi
     date +%Y-%m-%d-%H-%M-$USER
 }
 
@@ -428,11 +432,11 @@ run_cli() {
 }
 
 (
+    cd $SCRIPT_DIR
     source scripts/cli.sh
     source scripts/aws.sh
     source scripts/rc
     source scripts/colors.sh
-    cd $SCRIPT_DIR
     mkdir -p tags
     run_cli "$@"
 )

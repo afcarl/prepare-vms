@@ -11,7 +11,9 @@ def prettify(l):
 
 
 # Read settings from settings.yaml
-with open(sys.argv[1]) as f:
+#with open(sys.argv[1]) as f:
+#with open("settings.yaml") as f:
+with open("settings/fundamentals-settings.yaml") as f:
     data = f.read()
 
 SETTINGS = yaml.load(data)
@@ -29,6 +31,21 @@ print("Background image: {}".format(background_image))
 print("---------------------------------------------")
 
 assert len(ips)%clustersize == 0
+
+if clustersize == 1:
+    blurb = blurb.format(
+        cluster_or_machine="machine",
+        this_or_each="this",
+        machine_is_or_machines_are="machine is",
+        workshop_name=workshop_short_name,
+    )
+else:
+    blurb = blurb.format(
+        cluster_or_machine="cluster",
+        this_or_each="each",
+        machine_is_or_machines_are="machines are",
+        workshop_name=workshop_short_name,
+    )
 
 clusters = []
 
@@ -91,7 +108,7 @@ html.close()
         html.write("<li>{}</li>".format(s))
     html.write("</ul></p>")
     html.write("<center>")
-    html.write("<p>login: <b><code>{}</code></b>   password: <b><code>{}</code></b></p>\n".format(instance_login, instance_password))
+    html.write("<p>login: <b><code>{}</code></b> &nbsp&nbsp  password: <b><code>{}</code></b></p>\n".format(instance_login, instance_password))
     html.write("</center>")
     html.write(footer)
     html.write("</div>")

@@ -40,29 +40,33 @@ run_containerized() {
         exit 1
     fi
 
+    #/tmp/ssh-uN1oMimerRo0/agent.1411
     (
     cd $SCRIPT_DIR
-    docker run --rm -ti \
-        --name trainer \
-        -e AWS_ACCESS_KEY_ID \
-        -e AWS_CONFIG_FILE \
-        -e AWS_DEFAULT_PROFILE \
-        -e AWS_DEFAULT_REGION \
-        -e AWS_DEFAULT_OUTPUT \
-        -e AWS_SECRET_ACCESS_KEY \
-        -e AWS_SESSION_TOKEN \
-        -e USER \
-        -e SSH_AUTH_SOCK \
-        -e SCRIPT_DIR=/trainer-tools \
-        -e LOCAL_PATH=$SCRIPT_DIR \
-        -e DISPLAY=$DISPLAY \
-        -v /tmp/.X11-unix:/tmp/.X11-unix \
-        -v `pwd`:/workdir \
-        -v $SCRIPT_DIR:/trainer-tools/ \
-        -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
-        -w /workdir \
-        --entrypoint "/trainer-tools/scripts/trainer-cli" \
-        $TRAINER_IMAGE "$@"
+    export SSH_AUTH_DIRNAME=$(dirname $SSH_AUTH_SOCK)
+    docker-compose -f ~/git/prepare-vms/docker-compose.yml run prepare-vms "$@"
+
+    #docker run --rm -ti \
+    #    --name trainer \
+    #    -e AWS_ACCESS_KEY_ID \
+    #    -e AWS_CONFIG_FILE \
+    #    -e AWS_DEFAULT_PROFILE \
+    #    -e AWS_DEFAULT_REGION \
+    #    -e AWS_DEFAULT_OUTPUT \
+    #    -e AWS_SECRET_ACCESS_KEY \
+    #    -e AWS_SESSION_TOKEN \
+    #    -e USER \
+    #    -e SSH_AUTH_SOCK \
+    #    -e SCRIPT_DIR=/trainer-tools \
+    #    -e LOCAL_PATH=$SCRIPT_DIR \
+    #    -e DISPLAY=$DISPLAY \
+    #    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    #    -v `pwd`:/workdir \
+    #    -v $SCRIPT_DIR:/trainer-tools/ \
+    #    -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
+    #    -w /workdir \
+    #    --entrypoint "/trainer-tools/scripts/trainer-cli" \
+    #    $TRAINER_IMAGE "$@"
     )
 }
 
@@ -73,7 +77,9 @@ check_envvars() {
     for envvar in $ENVVARS; do
         if [ -z "${!envvar}" ]; then
             echo "Please export $envvar environment variable."
-            return 1
+            echo "Unsetting $envvar environment variable."
+            unset $envvar
+            #return 1
         fi
     done
     return 0
