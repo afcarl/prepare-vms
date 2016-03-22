@@ -59,10 +59,10 @@ html.write("<html><head><style>")
 head = """
 div {{
     float:left;
-    border: 1px dotted gray;
+    border: 1px dotted black;
     width: 27%;
     padding: 6% 3.5% 2.5% 2.5%;
-    font-size: x-small;
+    font-size: x-medium;
     background-image: url("{background_image}");
     background-size: 13%;
     background-position-x: 50%;
@@ -96,7 +96,7 @@ for i, cluster in enumerate(clusters):
     for s in prettify(cluster):
         html.write("<li>%s</li>\n"%s)
     html.write("</ul></p>")
-    html.write("<p>login: <b><code>{}</code></b>   password: <b><code>{}</code></b></p>\n".format(instance_login, instance_password))
+    html.write("<p>login: <b><code>{}</code></b> <br>password: <b><code>{}</code></b></p>\n".format(instance_login, instance_password))
     html.write(footer)
     html.write("</div>")
 html.close()

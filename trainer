@@ -2,16 +2,27 @@
 
 TRAINER_IMAGE="soulshake/prepare-vms"
 
+PIP_DEPENDENCIES="
+    awscli
+"
+
+# dpkg -l/pip/type-friendly
 DEPENDENCIES="
+    aws
     awscli
     ssh
     curl
     jq
     bsdmainutils
     pssh
+    pip
     python-pip
-    man
     wkhtmltopdf
+    JP_PLACEHOLDER
+    "
+
+OPTIONAL_DEPENDENCIES="
+    man
     "
 
 ENVVARS="
@@ -21,15 +32,45 @@ ENVVARS="
     AWS_DEFAULT_PROFILE
     SSH_AGENT_PID
     SSH_AUTH_SOCK
-    SSH_AGENT_PID
+    SSH_AUTH_DIRNAME
     "
 
-# Get the script's real directory, whether we're being called directly or via a symlink
-if [ -L $0 ]; then
-    export SCRIPT_DIR=$(dirname $(readlink $0))
-else
-    export SCRIPT_DIR=$(dirname $(readlink -f $0))
-fi
+envvars_ok() {
+    # This script expects plain text output from the AWS CLI in some places
+    export AWS_DEFAULT_OUTPUT=text
+
+    for envvar in $ENVVARS; do
+        if [ -z "${!envvar}" ]; then
+            echo "Please export $envvar environment variable. Unsetting."
+            unset $envvar
+            #return 1
+        fi
+    done
+    return 0
+}
+
+package_is_installed() {
+    # Try "type", "dpkg -l", and "pip freeze" to see if a package is installed
+    dependency=$1
+    type $dependency >/dev/null 2>&1 \
+        || dpkg -l $dependency >/dev/null 2>&1 \
+        || pip freeze | grep $dependency >/dev/null 2>&1 || return 1
+}
+
+show_missing_dependencies() {
+    for dependency in $DEPENDENCIES; do
+            package_is_installed $dependency \
+            && echo "     $dependency: [OK]" \
+                || { echo >&2 "$(tput setaf 1)     $dependency: [NOK] $(tput sgr0)" ;}
+    done
+
+    echo "Recommended:"
+    for dependency in $OPTIONAL_DEPENDENCIES; do
+            package_is_installed $dependency \
+            && echo "     $dependency: [OK]" \
+                || { echo >&2 "$(tput setaf 1)     $dependency: [NOK] $(tput sgr0)" ;}
+    done
+}
 
 run_natively() {
     scripts/trainer-cli "$@"
@@ -48,62 +89,17 @@ run_containerized() {
     (
     cd $SCRIPT_DIR
     export SSH_AUTH_DIRNAME=$(dirname $SSH_AUTH_SOCK)
-    echo "SSH_AUTH_DIRNAME: $SSH_AUTH_DIRNAME"
     docker-compose -f docker-compose.yml run prepare-vms "$@"
 
-    #docker run --rm -ti \
-    #    --name trainer \
-    #    -e AWS_ACCESS_KEY_ID \
-    #    -e AWS_CONFIG_FILE \
-    #    -e AWS_DEFAULT_PROFILE \
-    #    -e AWS_DEFAULT_REGION \
-    #    -e AWS_DEFAULT_OUTPUT \
-    #    -e AWS_SECRET_ACCESS_KEY \
-    #    -e AWS_SESSION_TOKEN \
-    #    -e USER \
-    #    -e SSH_AUTH_SOCK \
-    #    -e SCRIPT_DIR=/trainer-tools \
-    #    -e LOCAL_PATH=$SCRIPT_DIR \
-    #    -e DISPLAY=$DISPLAY \
-    #    -v /tmp/.X11-unix:/tmp/.X11-unix \
-    #    -v `pwd`:/workdir \
-    #    -v $SCRIPT_DIR:/trainer-tools/ \
-    #    -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
-    #    -w /workdir \
-    #    --entrypoint "/trainer-tools/scripts/trainer-cli" \
-    #    $TRAINER_IMAGE "$@"
     )
-}
-
-check_envvars() {
-    # This script expects plain text output from the AWS CLI in some places
-    export AWS_DEFAULT_OUTPUT=text
-
-    for envvar in $ENVVARS; do
-        if [ -z "${!envvar}" ]; then
-            echo "Please export $envvar environment variable. Unsetting."
-            unset $envvar
-            #return 1
-        fi
-    done
-    return 0
-}
-
-show_missing_dependencies() {
-    for dependency in $DEPENDENCIES; do
-        type $dependency >/dev/null 2>&1 && echo "     $dependency: [OK]" \
-            || { echo >&2 "$(tput setaf 1)     $dependency: [NOK] $(tput sgr0)" ;}
-    done
 }
 
 dependencies_fulfilled() {
     for dependency in $DEPENDENCIES ; do
-        type $dependency >/dev/null 2>&1 \
-            || return 1 ;
+        package_is_installed $dependency || return 1
     done
 
     echo "All dependencies fulfilled. Running locally."
-    return 0
 }
 
 trainer_image_exists_locally() {
@@ -111,12 +107,24 @@ trainer_image_exists_locally() {
     return $?
 }
 
-if ! check_envvars; then
+# Get the script's real directory, whether we're being called directly or via a symlink
+if [ -L $0 ]; then
+    export SCRIPT_DIR=$(dirname $(readlink $0))
+else
+    export SCRIPT_DIR=$(dirname $(readlink -f $0))
+fi
+
+export SSH_AUTH_DIRNAME=$(dirname $SSH_AUTH_SOCK)
+
+if ! envvars_ok; then
     exit 1
 fi
 
 if dependencies_fulfilled; then
-    run_natively "$@"
+    (
+        cd $SCRIPT_DIR
+        run_natively "$@"
+    )
 elif trainer_image_exists_locally; then
     run_containerized "$@"
 else

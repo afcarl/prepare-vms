@@ -8,10 +8,34 @@ greet() {
     echo "Greetings, $hello!"
 }
 
+deploy_hq(){
+    TAG=$1
+    need_tag $TAG
+    REMOTE_USER=ubuntu
+    REMOTE_HOST=$(aws_get_instance_ips_by_tag $TAG)
+    echo "Trying to reach $TAG instances..."
+    while ! tag_is_reachable $TAG; do
+        echo -n "."
+        sleep 2
+    done
+    env | grep -i aws > envvars.sh
+    scp \
+        -o "UserKnownHostsFile /dev/null" \
+        -o "StrictHostKeyChecking=no" \
+        scripts/remote-execution.sh \
+        envvars.sh \
+        $REMOTE_USER@$REMOTE_HOST:/tmp/
+
+    ssh -A $REMOTE_USER@$REMOTE_HOST "bash /tmp/remote-execution.sh >>/tmp/pre.out 2>>/tmp/pre.err"
+    ssh -A $REMOTE_USER@$REMOTE_HOST 
+}
+
 deploy_tag(){
     TAG=$1
     need_tag $TAG
     link_tag $TAG
+
+
     count=$(cat ips.txt | wc -l)
 
     # wait until all hosts are reachable before trying to deploy
@@ -93,9 +117,7 @@ tag_is_reachable() {
     TAG=$1
     need_tag $TAG
     link_tag $TAG
-    #if ! pssh true ; then
-    #if ! pssh true &> /dev/null ; then
-    if ! pssh true 2>&1 >/dev/null; then
+    if ! pssh -t 5 true 2>&1 >/dev/null; then
         return 1
     fi
     return 0
@@ -107,7 +129,6 @@ test_tag(){
     ip=$(shuf -n 1 $ips_file)
     test_vm $ip
     echo "Tests complete. You may want to run one of the following commands:"
-    echo "trainer stop $TAG"
     echo "trainer cards $TAG"
 }
 
@@ -262,7 +283,20 @@ run_cli() {
     deploy)
         TAG=$2
         need_tag $TAG
-        deploy_tag $TAG
+        if [[ $TAG == *"-hq"* ]]; then
+            echo "Deploying HQ"
+            deploy_hq $TAG
+        else
+            workshop=$2
+            if [ -z $workshop ]; then
+                echo "Please specify a workshop name (fundamentals or orchestration)"
+                exit 1
+            fi
+            echo "Deploying with $workshop settings"
+            ln -sf settings/$workshop-settings.yaml settings.yaml
+            deploy_tag $TAG
+        
+        fi
         ;;
     ids)
         TAG=$2
@@ -293,7 +327,6 @@ run_cli() {
         echo "You may be interested in running one of the following commands:"
         echo "trainer ips $TAG"
         echo "trainer deploy $TAG"
-        echo "trainer stop $TAG"
         ;;
     opensg)
         aws ec2 authorize-security-group-ingress \
@@ -336,6 +369,10 @@ run_cli() {
         key_name=$(sync_keys)   # Upload our SSH keys to AWS if needed, to be added to each VM's authorized_keys
         AMI=$(get_ami)  # Retrieve the AWS image ID
         TOKEN=$(get_token)  # generate a timestamp token for this batch of VMs
+        if [ ! -z $3 ]; then
+            # If an extra arg is present, append it to the tag
+            TOKEN=$TOKEN-$3
+        fi
 
         echo "-----------------------------------"
         echo "Starting $COUNT instances:"
@@ -351,6 +388,7 @@ run_cli() {
             --client-token $TOKEN \
             --image-id $AMI)
         reservation_id=$(echo "$result" | head -1 | awk '{print $2}' )
+        echo "      Key name: $AWS_KEY_NAME"
         echo "Reservation ID: $reservation_id"
         echo "-----------------------------------"
 
@@ -378,7 +416,6 @@ run_cli() {
         echo "To deploy or kill these instances, run one of the following:"
         echo "trainer deploy $TAG"
         echo "trainer list $TAG"
-        echo "trainer stop $TAG"
         ;;
     status)
         greet && echo
@@ -399,6 +436,15 @@ run_cli() {
         TAG=$2
         need_tag $TAG
         aws_kill_instances_by_tag $TAG
+        ;;
+    tag)
+        # add a tag to a batch of VMs
+        TAG=$2
+        NEW_TAG_KEY=$3
+        NEW_TAG_VALUE=$4
+        need_tag $TAG
+        need_tag $NEW_TAG_KEY
+        need_tag $NEW_TAG_VALUE
         ;;
     test)
         TAG=$2
@@ -438,5 +484,6 @@ run_cli() {
     source scripts/rc
     source scripts/colors.sh
     mkdir -p tags
+    # TODO: unset empty envvars
     run_cli "$@"
 )
